@@ -1,6 +1,8 @@
 import numpy as np
 import cv2 as cv
 import json
+from time import sleep
+
 config = {}
 with open('config.json',"r+") as config_file:
     config = json.loads(''.join(config_file.readlines()))
@@ -45,14 +47,31 @@ lower2 = (config['teams'][1]['h'][0],config['teams'][1]['s'][0],config['teams'][
 upper2 = (config['teams'][1]['h'][1],config['teams'][1]['s'][1],config['teams'][1]['v'][1]) #150,250,120
 grass_lower = (config['grass']['h'][0],config['grass']['s'][0],config['grass']['v'][0])  #120,150,80
 grass_upper = (config['grass']['h'][1],config['grass']['s'][1],config['grass']['v'][1]) #150,250,120
-while(True):
+
+
+def get_most_right(team_pos):
+    most_right = (0, 0)
+    for pos in team_pos:
+        if pos[0] > most_right[0]:
+            most_right = pos
+    return most_right
+
+
+def get_most_left(team_pos):
+    most_left = (10000000, 0)
+    for pos in team_pos:
+        if pos[0] < most_left[0]:
+            most_left = pos
+    return most_left
+
+
+while True:
     # print(config["filepath"])
     # print(config['teams'])
     # Capture frame-by-frame
     ret, frame = cap.read()
     hsv = cv.cvtColor(frame, cv.COLOR_BGR2HSV)
     canvas = frame.copy()
-    
 
     lower = (h1,s1,v1)  #120,150,80
     upper = (h2,s2,v2) #150,250,120
@@ -68,9 +87,11 @@ while(True):
     grass_contour = max(cv.findContours(grass_mask, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_NONE)[0], key = cv.contourArea)
     if(cv.contourArea(grass_contour)>config["grass_min_area"]):
         M = cv.moments(grass_contour)
+        grass_center = (0, 0)
         if(M["m00"]!=0):
             grass_center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
             cv.circle(frame, grass_center, 2, (0,255,0), 10)
+        left_team_pos = []
         for c in contours1:
             if(cv.contourArea(c)>config["min_player_area"]):
                 M = cv.moments(c)
@@ -79,7 +100,9 @@ while(True):
                     center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
                     if(cv.pointPolygonTest(grass_contour,center,False)>0):
                         cv.circle(frame, center, 2, (0,0,255), 10)
-                #print(cv.contourArea(c))
+                        left_team_pos.append(center)
+                # print(cv.contourArea(c))
+        right_team_pos = []
         for c in contours2:
             if(cv.contourArea(c)>config["min_player_area"]):
                 M = cv.moments(c)
@@ -90,6 +113,18 @@ while(True):
                         cv.circle(frame, center, 2, (255,0,0), 10)
                 #print(cv.contourArea(c))
 
+        most_right_def = get_most_right(right_team_pos)
+        most_right_atk = get_most_right(left_team_pos)
+        most_left_def = get_most_left(left_team_pos)
+        most_left_atk = get_most_left(right_team_pos)
+        # cv.circle(frame, most_right_atk, 2, (255, 255, 0), 10)  # yellow
+        # cv.circle(frame, most_right_def, 2, (0, 255, 255), 10)  # cyan
+        # cv.circle(frame, most_left_atk, 2, (255, 0, 255), 10)   # magenta
+        # cv.circle(frame, most_left_def, 2, (127, 127, 127), 10) # grey
+        if most_right_def[0] < most_right_atk[0]:
+            cv.circle(frame, most_right_atk, 2, (0, 0, 0), 10)      # black
+        if most_left_def[0] > most_left_atk[0]:
+            cv.circle(frame, most_left_atk, 2, (127, 127, 127), 10) # grey
     # except (ValueError, ZeroDivisionError):
     #     pass
     
